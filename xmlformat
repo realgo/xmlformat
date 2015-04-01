@@ -1,0 +1,39 @@
+#!/usr/bin/env python
+#
+# Format an XML file so that it can be diffed with another.
+
+from lxml import etree
+import sys
+
+
+def sorted_items(e):
+    return ' '.join(
+        ['%s="%s"' % (x[0], x[1]) for x in sorted(e.items())])
+
+
+def tag_to_key(e):
+    import StringIO
+    subtree = StringIO.StringIO()
+    walk(e, 0, fp=subtree)
+    return '%s %s %s' % (e.tag, sorted_items(e), subtree.getvalue())
+
+
+def walk(tree, indent_level=0, fp=sys.stdout):
+    for element in sorted(tree.getchildren(), key=tag_to_key):
+        if callable(element.tag) and type(element.tag()) == etree._Comment:
+            continue
+
+        fp.write('%s<%s>\n' % (' ' * indent_level, ' '.join(
+            (element.tag, sorted_items(element))).strip()))
+        if element.text and element.text.strip():
+            fp.write('%s%s\n' % (' ' * (indent_level + 1), element.text))
+        walk(element, indent_level + 1, fp)
+        fp.write('%s</%s>\n' % (' ' * indent_level, element.tag))
+
+try:
+    tree = etree.parse(sys.stdin)
+    root = tree.getroot()
+    walk(root)
+except etree.XMLSyntaxError as e:
+    sys.stderr.write('XML Syntax Error: %s\n' % str(e))
+    sys.exit(1)
